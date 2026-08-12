@@ -1,0 +1,40 @@
+services:
+  # Substitui a VM do Mininet. Precisa de --privileged (namespaces de rede,
+  # veth pairs, tc netem para o TCLink) e do /lib/modules do host somente
+  # leitura, para o caso do módulo de kernel do Open vSwitch ainda não estar
+  # carregado no host.
+  mininet-host:
+    build: ./docker/mininet-host
+    hostname: mininet-host
+    privileged: true
+    volumes:
+      - /lib/modules:/lib/modules:ro
+      # Host keys do sshd persistidas: sem isso, cada "docker compose up"
+      # depois de um "down" gera chaves novas e quebra o known_hosts do dev.
+      - mininet_host_ssh:/etc/ssh
+    networks:
+      - tccnet
+
+  # Substitui a "máquina de dev": compila o Go e roda os scripts em
+  # scripts/mininet/*.sh, que falam com o mininet-host por SSH.
+  dev:
+    build: ./docker/dev
+    volumes:
+      - .:/workspace
+      # Persiste a chave SSH gerada por upload_ssh_key.sh entre recreates.
+      - dev_ssh:/root/.ssh
+    working_dir: /workspace
+    tty: true
+    stdin_open: true
+    depends_on:
+      - mininet-host
+    networks:
+      - tccnet
+
+networks:
+  tccnet:
+    driver: bridge
+
+volumes:
+  mininet_host_ssh:
+  dev_ssh:

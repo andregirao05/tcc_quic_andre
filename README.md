@@ -35,6 +35,10 @@ Os resultados do TCC vêm de experimentos em rede emulada com **Mininet**, orque
 pelos scripts em `scripts/mininet/`. O fluxo: os scripts cross-compilam o binário,
 enviam por SSH a um host Mininet e coletam os CSVs em `logs/`.
 
+> 🐳 **Não quer criar uma VM do Mininet?** Rode `docker compose up -d --build` e use
+> `mininet-host` como `<IP_DO_HOST_MININET>` nos comandos abaixo — veja a seção
+> [Docker em COMO_RODAR.md](COMO_RODAR.md#55-alternativa-docker-containers-em-vez-de-vm).
+
 ```bash
 cd scripts/mininet
 

@@ -163,6 +163,60 @@ sudo mn --test pingall      # deve completar sem erro
 - **WSL2 como host** (avançado): funciona, mas o usuário do WSL **não é `mininet`**,
   então os scripts (que fixam `mininet@`) não funcionam sem editar. Só recomendo se
   você criar um usuário `mininet` no WSL. Para a maioria dos casos, a **VM é mais simples**.
+- **Docker** (sem precisar de VM nem de outra máquina): veja a seção 5.5 abaixo.
+
+### 5.5. Alternativa: Docker (containers em vez de VM)
+
+Se você já tem **Docker** instalado (e, no Linux, sem restrição para containers
+`--privileged`), dá pra pular a criação da VM inteiramente. O repositório já traz
+um `docker-compose.yml` com dois containers:
+
+- **`mininet-host`** — substitui a VM: Open vSwitch + Mininet + `sshd`, usuário
+  `mininet`/`mininet` com sudo sem senha (igual à VM oficial). Roda `--privileged`
+  porque o Mininet precisa criar namespaces de rede, veth pairs e `tc netem`.
+- **`dev`** — substitui a máquina de dev: `golang:1.19` + `git` + `ssh`/`scp`. O
+  repositório inteiro fica montado nele em `/workspace` (bind mount, não é cópia).
+
+```bash
+# na raiz do repositório
+docker compose up -d --build
+
+# entra no container "dev" (equivalente à máquina de dev dos passos 1-4)
+docker compose exec dev bash
+
+# dentro do container: troca de chave SSH (uma vez só, persiste entre restarts)
+ssh-keygen -t ecdsa -f ~/.ssh/id_ecdsa -N ""
+cd scripts/mininet
+./upload_ssh_key.sh mininet-host        # senha: mininet
+```
+
+A partir daqui, **use `mininet-host` como `<IP_DO_HOST_MININET>`** em todos os
+comandos deste guia (seções 6-10) — o Compose resolve esse nome para o container
+via DNS interno, você não precisa descobrir IP nenhum:
+
+```bash
+./server_scheduler_test.sh --wfq --abr bola --sbw 40 --delay 10 --load 30 \
+    --clients 6 --fov-mix balanced mininet-host
+```
+
+Para encerrar: `exit` do container e `docker compose down` (os volumes guardam as
+chaves SSH, então `docker compose up -d` de novo não exige repetir o
+`upload_ssh_key.sh`; use `docker compose down -v` para apagar tudo, inclusive as chaves).
+
+> **Preciso rebuildar depois de alterar o repositório?** Não, na maioria dos casos.
+> `/workspace` é um **bind mount** (o mesmo diretório do host, não uma cópia) — qualquer
+> mudança no código (`.go`, scripts `.sh`/`.py`, `go.mod`) aparece na hora dentro do
+> container, sem rebuild. Você só precisa `docker compose build` (ou `up -d --build`)
+> quando muda os próprios `docker/*/Dockerfile` (ex.: novo pacote apt, outra versão do
+> Go) — ou seja, quando muda o **ambiente**, não o **projeto**.
+
+> **Linux nativo**: dá pra rodar os scripts **fora** do container `dev` também —
+> o IP do container `mininet-host` é alcançável direto do host (sem publicar porta),
+> desde que você tenha Go 1.19.x e `ssh`/`scp` instalados na sua máquina. Descubra o
+> IP com `docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $(docker compose ps -q mininet-host)`
+> e use esse IP em vez de `mininet-host`. Em **Docker Desktop (Mac/Windows)** isso
+> não funciona — o host não enxerga IPs de container diretamente; use sempre
+> `docker compose exec dev bash`.
 
 ### Acesso SSH sem senha (a partir da máquina de dev)
 
@@ -313,6 +367,8 @@ python regen_doc_figs.py
 | CSV do servidor só com cabeçalho | servidor encerrado antes do resumo | use as métricas do **cliente** (`statistics-*`) |
 | Resultados diferentes do TCC | banda errada | reproduza com **`--sbw 40`** (padrão dos scripts é 60) |
 | Muito lento a cada run | recompila toda vez | use `--no-build` a partir da 2ª run |
+| `SSH connection failed!` depois de `docker compose down`+`up` | IP do container mudou | use `mininet-host` (não um IP fixo) como `<IP>`, ou redescubra o IP com `docker inspect` |
+| `Permission denied (publickey)` no `mininet-host` logo após recriar só o container `dev` | volume `dev_ssh` não existia antes da 1ª troca de chave | rode `upload_ssh_key.sh mininet-host` de novo dentro do `dev` |
 
 ---
 
@@ -342,3 +398,7 @@ cd resources && python regen_doc_figs.py
 > 🐧 Linux: rode direto no terminal.
 > 🪟 Windows: rode tudo dentro do **WSL (Ubuntu)** — recomendado — ou do **Git Bash**.
 > O host Mininet (`<IP>`) é sempre uma máquina Linux separada com Mininet.
+>
+> 🐳 **Com Docker**, pule os passos 2-3: `docker compose up -d --build`,
+> `docker compose exec dev bash`, troque a chave uma vez (seção 5.5) e use
+> `mininet-host` no lugar de `<IP>` nos passos 4-5.
