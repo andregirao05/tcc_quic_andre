@@ -1,3 +1,7 @@
 # Scripts uploaded to Linux/Mininet must keep Unix line endings
 scripts/mininet/resources/*.py eol=lf
 scripts/mininet/*.sh eol=lf
+
+# Scripts executed inside Linux containers (via shebang) must also keep LF —
+# CRLF breaks "#!/usr/bin/env bash" (interpreter becomes "bash\r", not found).
+docker/**/*.sh eol=lf
