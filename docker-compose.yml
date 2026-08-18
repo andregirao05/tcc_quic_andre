@@ -17,6 +17,15 @@ services:
       - ssh_bootstrap:/shared-ssh
     networks:
       - tccnet
+    # "Pronto" = chave publicada em /shared-ssh E sshd de pé — sem isso,
+    # depends_on só garante que o container iniciou, não que o entrypoint
+    # (que gera a chave) terminou.
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /shared-ssh/id_ecdsa.pub && pgrep sshd"]
+      interval: 1s
+      timeout: 2s
+      retries: 30
+      start_period: 5s
 
   # Substitui a "máquina de dev": compila o Go e roda os scripts em
   # scripts/mininet/*.sh, que falam com o mininet-host por SSH.
@@ -31,7 +40,8 @@ services:
     tty: true
     stdin_open: true
     depends_on:
-      - mininet-host
+      mininet-host:
+        condition: service_healthy
     networks:
       - tccnet
 

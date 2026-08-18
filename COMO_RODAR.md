@@ -211,6 +211,12 @@ chaves SSH, então `docker compose up -d` de novo não regenera nada; use
 > confiar a host key sem prompt. Se algo der errado nessa automação, o
 > `upload_ssh_key.sh mininet-host` manual (senha: `mininet`) continua funcionando
 > como plano B.
+>
+> A ordem de inicialização é garantida por um `healthcheck` no `mininet-host`
+> (só fica "healthy" quando a chave existe **e** o `sshd` está de pé) combinado
+> com `depends_on: condition: service_healthy` no `dev` — sem isso, `depends_on`
+> sozinho só garante que o container do `mininet-host` *iniciou*, não que o
+> entrypoint dele *terminou* de gerar a chave.
 
 > **Preciso rebuildar depois de alterar o repositório?** Não, na maioria dos casos.
 > `/workspace` é um **bind mount** (o mesmo diretório do host, não uma cópia) — qualquer
