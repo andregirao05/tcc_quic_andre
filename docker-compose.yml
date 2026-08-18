@@ -12,6 +12,9 @@ services:
       # Host keys do sshd persistidas: sem isso, cada "docker compose up"
       # depois de um "down" gera chaves novas e quebra o known_hosts do dev.
       - mininet_host_ssh:/etc/ssh
+      # Par de chaves cliente gerado pelo entrypoint e consumido pelo "dev" —
+      # automatiza o que upload_ssh_key.sh faria manualmente.
+      - ssh_bootstrap:/shared-ssh
     networks:
       - tccnet
 
@@ -21,8 +24,9 @@ services:
     build: ./docker/dev
     volumes:
       - .:/workspace
-      # Persiste a chave SSH gerada por upload_ssh_key.sh entre recreates.
+      # Persiste a chave SSH (copiada de ssh_bootstrap pelo entrypoint) entre recreates.
       - dev_ssh:/root/.ssh
+      - ssh_bootstrap:/shared-ssh
     working_dir: /workspace
     tty: true
     stdin_open: true
@@ -38,3 +42,4 @@ networks:
 volumes:
   mininet_host_ssh:
   dev_ssh:
+  ssh_bootstrap:

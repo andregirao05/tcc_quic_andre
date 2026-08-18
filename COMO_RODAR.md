@@ -177,22 +177,22 @@ um `docker-compose.yml` com dois containers:
 - **`dev`** — substitui a máquina de dev: `golang:1.19` + `git` + `ssh`/`scp`. O
   repositório inteiro fica montado nele em `/workspace` (bind mount, não é cópia).
 
+A troca de chave SSH entre os dois containers é **automática** — não precisa rodar
+`upload_ssh_key.sh` nem `ssh-keygen` manualmente. O `mininet-host` gera um par de
+chaves no primeiro boot e publica num volume compartilhado; o `dev` o consome e
+confia a host key sozinho, tudo antes de qualquer comando seu rodar:
+
 ```bash
 # na raiz do repositório
 docker compose up -d --build
 
 # entra no container "dev" (equivalente à máquina de dev dos passos 1-4)
 docker compose exec dev bash
-
-# dentro do container: troca de chave SSH (uma vez só, persiste entre restarts)
-ssh-keygen -t ecdsa -f ~/.ssh/id_ecdsa -N ""
-cd scripts/mininet
-./upload_ssh_key.sh mininet-host        # senha: mininet
 ```
 
 A partir daqui, **use `mininet-host` como `<IP_DO_HOST_MININET>`** em todos os
 comandos deste guia (seções 6-10) — o Compose resolve esse nome para o container
-via DNS interno, você não precisa descobrir IP nenhum:
+via DNS interno, e o SSH já está pronto:
 
 ```bash
 ./server_scheduler_test.sh --wfq --abr bola --sbw 40 --delay 10 --load 30 \
@@ -200,8 +200,17 @@ via DNS interno, você não precisa descobrir IP nenhum:
 ```
 
 Para encerrar: `exit` do container e `docker compose down` (os volumes guardam as
-chaves SSH, então `docker compose up -d` de novo não exige repetir o
-`upload_ssh_key.sh`; use `docker compose down -v` para apagar tudo, inclusive as chaves).
+chaves SSH, então `docker compose up -d` de novo não regenera nada; use
+`docker compose down -v` para apagar tudo, inclusive as chaves, e recomeçar do zero).
+
+> **Como funciona por baixo dos panos**: `docker/mininet-host/entrypoint.sh` gera
+> o par de chaves (se ainda não existir) num volume `ssh_bootstrap` compartilhado
+> e adiciona a pública no `authorized_keys` do usuário `mininet`, antes de subir o
+> `sshd`. `docker/dev/entrypoint.sh` espera essa chave aparecer, copia pra
+> `~/.ssh` (volume `dev_ssh`, persistente) e roda `ssh-keyscan mininet-host` pra
+> confiar a host key sem prompt. Se algo der errado nessa automação, o
+> `upload_ssh_key.sh mininet-host` manual (senha: `mininet`) continua funcionando
+> como plano B.
 
 > **Preciso rebuildar depois de alterar o repositório?** Não, na maioria dos casos.
 > `/workspace` é um **bind mount** (o mesmo diretório do host, não uma cópia) — qualquer
@@ -368,7 +377,7 @@ python regen_doc_figs.py
 | Resultados diferentes do TCC | banda errada | reproduza com **`--sbw 40`** (padrão dos scripts é 60) |
 | Muito lento a cada run | recompila toda vez | use `--no-build` a partir da 2ª run |
 | `SSH connection failed!` depois de `docker compose down`+`up` | IP do container mudou | use `mininet-host` (não um IP fixo) como `<IP>`, ou redescubra o IP com `docker inspect` |
-| `Permission denied (publickey)` no `mininet-host` logo após recriar só o container `dev` | volume `dev_ssh` não existia antes da 1ª troca de chave | rode `upload_ssh_key.sh mininet-host` de novo dentro do `dev` |
+| `Permission denied (publickey)` no `mininet-host` | volume `ssh_bootstrap` foi apagado (`down -v`) mas `mininet_host_ssh`/`dev_ssh` não, ou vice-versa — chaves dessincronizadas | `docker compose down -v && docker compose up -d --build` (regenera tudo do zero) ou rode `upload_ssh_key.sh mininet-host` manualmente como plano B |
 
 ---
 
@@ -400,5 +409,5 @@ cd resources && python regen_doc_figs.py
 > O host Mininet (`<IP>`) é sempre uma máquina Linux separada com Mininet.
 >
 > 🐳 **Com Docker**, pule os passos 2-3: `docker compose up -d --build`,
-> `docker compose exec dev bash`, troque a chave uma vez (seção 5.5) e use
-> `mininet-host` no lugar de `<IP>` nos passos 4-5.
+> `docker compose exec dev bash` (a troca de chave SSH já é automática — seção
+> 5.5) e use `mininet-host` no lugar de `<IP>` nos passos 4-5.
