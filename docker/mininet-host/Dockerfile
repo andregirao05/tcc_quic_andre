@@ -2,11 +2,11 @@
 # Login mininet/mininet + sudo sem senha, igual à imagem oficial da VM, para
 # que scripts/mininet/*.sh funcionem sem nenhuma alteração — só apontando o
 # <IP> para o hostname deste serviço no docker-compose (ex.: "mininet-host").
-FROM ubuntu:20.04
+FROM ubuntu:22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# O pacote "mininet" do apt (Ubuntu 20.04) só traz bindings Python 2 —
+# O pacote "mininet" do apt (Ubuntu 20.04/22.04) só traz bindings Python 2 —
 # server_scheduler_test.py é Python 3. Por isso o Mininet e o controller de
 # referência são instalados a partir do código-fonte oficial (com
 # PYTHON=python3), igual ao que "util/install.sh -nf" faz na VM oficial.
