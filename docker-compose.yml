@@ -1,0 +1,55 @@
+services:
+  # Substitui a VM do Mininet. Precisa de --privileged (namespaces de rede,
+  # veth pairs, tc netem para o TCLink) e do /lib/modules do host somente
+  # leitura, para o caso do módulo de kernel do Open vSwitch ainda não estar
+  # carregado no host.
+  mininet-host:
+    build: ./docker/mininet-host
+    hostname: mininet-host
+    privileged: true
+    volumes:
+      - /lib/modules:/lib/modules:ro
+      # Host keys do sshd persistidas: sem isso, cada "docker compose up"
+      # depois de um "down" gera chaves novas e quebra o known_hosts do dev.
+      - mininet_host_ssh:/etc/ssh
+      # Par de chaves cliente gerado pelo entrypoint e consumido pelo "dev" —
+      # automatiza o que upload_ssh_key.sh faria manualmente.
+      - ssh_bootstrap:/shared-ssh
+    networks:
+      - tccnet
+    # "Pronto" = chave publicada em /shared-ssh E sshd de pé — sem isso,
+    # depends_on só garante que o container iniciou, não que o entrypoint
+    # (que gera a chave) terminou.
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /shared-ssh/id_ecdsa.pub && pgrep sshd"]
+      interval: 1s
+      timeout: 2s
+      retries: 30
+      start_period: 5s
+
+  # Substitui a "máquina de dev": compila o Go e roda os scripts em
+  # scripts/mininet/*.sh, que falam com o mininet-host por SSH.
+  dev:
+    build: ./docker/dev
+    volumes:
+      - .:/workspace
+      # Persiste a chave SSH (copiada de ssh_bootstrap pelo entrypoint) entre recreates.
+      - dev_ssh:/root/.ssh
+      - ssh_bootstrap:/shared-ssh
+    working_dir: /workspace
+    tty: true
+    stdin_open: true
+    depends_on:
+      mininet-host:
+        condition: service_healthy
+    networks:
+      - tccnet
+
+networks:
+  tccnet:
+    driver: bridge
+
+volumes:
+  mininet_host_ssh:
+  dev_ssh:
+  ssh_bootstrap:

@@ -176,7 +176,9 @@ esac
 if [[ "$NO_BUILD" == 0 ]]; then
     echo -e "${PURPLE}Compiling for Linux...${NC}"
 
-    (cd ../.. && GOOS=linux GOARCH=amd64 go build -o main)
+    # -buildvcs=false: skip Go's automatic "git status --porcelain" VCS
+    # binary doesn't need embedded VCS info anyway.
+    (cd ../.. && GOOS=linux GOARCH=amd64 go build -buildvcs=false -o main)
     EXIT_CODE=$?
     if [[ $EXIT_CODE != 0 ]]; then
         exit $EXIT_CODE
